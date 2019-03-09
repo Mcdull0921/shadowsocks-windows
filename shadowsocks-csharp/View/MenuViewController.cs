@@ -90,16 +90,25 @@ namespace Shadowsocks.View
             this.updateChecker = new UpdateChecker();
             updateChecker.CheckUpdateCompleted += updateChecker_CheckUpdateCompleted;
 
+            #region 抓取网络地址
+            //var servers = GetServers.Download();
+            //if (servers != null && servers.Count > 0)
+            //{
+            //    controller.SaveServers(servers, 1080, true);
+            //}
+            #endregion
             LoadCurrentConfiguration();
 
             Configuration config = controller.GetConfigurationCopy();
+
+
 
             if (config.isDefault)
             {
                 _isFirstRun = true;
                 ShowConfigForm();
             }
-            else if(config.autoCheckUpdate)
+            else if (config.autoCheckUpdate)
             {
                 _isStartupChecking = true;
                 updateChecker.CheckUpdate(config, 3000);
@@ -217,9 +226,9 @@ namespace Shadowsocks.View
                         {
                             Color flyBlue = Color.FromArgb(25, 125, 191);
                             // Multiply with flyBlue
-                            int red   = color.R * flyBlue.R / 255;
-                            int green = color.G * flyBlue.G / 255; 
-                            int blue  = color.B * flyBlue.B / 255;
+                            int red = color.R * flyBlue.R / 255;
+                            int green = color.G * flyBlue.G / 255;
+                            int blue = color.B * flyBlue.B / 255;
                             iconCopy.SetPixel(x, y, Color.FromArgb(color.A, red, green, blue));
                         }
                     }
@@ -258,7 +267,7 @@ namespace Shadowsocks.View
         {
             return new MenuItem(I18N.GetString(text), items);
         }
-
+        MenuItem DownloadServersItem;
         private void LoadMenu()
         {
             this.contextMenu1 = new ContextMenu(new MenuItem[] {
@@ -305,6 +314,9 @@ namespace Shadowsocks.View
                     CreateMenuItem("About...", new EventHandler(this.AboutItem_Click)),
                 }),
                 new MenuItem("-"),
+               DownloadServersItem = CreateMenuItem("获取服务器", new EventHandler(this.DownloadServers_Click)),
+                CreateMenuItem("读取a.ishadowx.net源html", new EventHandler(this.LoadLocateServers_Click)),
+                new MenuItem("-"),
                 CreateMenuItem("Quit", new EventHandler(this.Quit_Click))
             });
         }
@@ -328,7 +340,8 @@ namespace Shadowsocks.View
             ShareOverLANItem.Checked = controller.GetConfigurationCopy().shareOverLan;
         }
 
-        void controller_VerboseLoggingStatusChanged(object sender, EventArgs e) {
+        void controller_VerboseLoggingStatusChanged(object sender, EventArgs e)
+        {
             VerboseLoggingToggleItem.Checked = controller.GetConfigurationCopy().isVerboseLogging;
         }
 
@@ -437,7 +450,7 @@ namespace Shadowsocks.View
             }
 
             // user wants a seperator item between strategy and servers menugroup
-            items.Add( i++, new MenuItem("-") );
+            items.Add(i++, new MenuItem("-"));
 
             int strategyCount = i;
             Configuration configuration = controller.GetConfigurationCopy();
@@ -565,6 +578,55 @@ namespace Shadowsocks.View
             Application.Exit();
         }
 
+        private void LoadLocateServers_Click(object sender, EventArgs e)
+        {
+            OpenFileDialog ofd = new OpenFileDialog();
+            ofd.Filter = "网页源码txt|*.txt|网页源码html|*.html";
+            ofd.ValidateNames = true;
+            ofd.CheckPathExists = true;
+            ofd.CheckFileExists = true;
+            if (ofd.ShowDialog() == DialogResult.OK)
+            {
+                var servers = GetServers.LoadLocate(ofd.FileName);
+                if (servers != null && servers.Count > 0)
+                {
+                    SaveServers(servers);
+                    MessageBox.Show("共加载" + (servers.Count - 1) + "个地址！", "成功", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                }
+                else
+                {
+                    MessageBox.Show("读取地址失败！", "错误", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                }
+            }
+        }
+
+        private async void DownloadServers_Click(object sender, EventArgs e)
+        {
+            DownloadServersItem.Enabled = false;
+            controller.Stop();
+            var servers = await System.Threading.Tasks.Task<List<Server>>.Factory.StartNew(GetServers.Download);
+            if (servers != null && servers.Count > 0)
+            {
+                SaveServers(servers);
+                MessageBox.Show("地址获取成功！", "Shadowsocks", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            }
+            else
+            {
+                MessageBox.Show("很抱歉，加载网络地址失败！", "Shadowsocks", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+            controller.Start(false);
+            DownloadServersItem.Enabled = true;
+        }
+
+        private void SaveServers(List<Server> servers)
+        {
+            Configuration config = controller.GetConfigurationCopy();
+            servers.Insert(0, config.configs[0]);
+            controller.SaveServers(servers, 1080, true);
+            UpdateServersMenu();
+        }
+
+
         private void CheckUpdateForFirstRun()
         {
             Configuration config = controller.GetConfigurationCopy();
@@ -588,7 +650,7 @@ namespace Shadowsocks.View
 
         private void notifyIcon1_Click(object sender, MouseEventArgs e)
         {
-            if ( e.Button == MouseButtons.Middle )
+            if (e.Button == MouseButtons.Middle)
             {
                 ShowLogForm();
             }
@@ -650,9 +712,10 @@ namespace Shadowsocks.View
             controller.SelectStrategy((string)item.Tag);
         }
 
-        private void VerboseLoggingToggleItem_Click( object sender, EventArgs e ) {
-            VerboseLoggingToggleItem.Checked = ! VerboseLoggingToggleItem.Checked;
-            controller.ToggleVerboseLogging( VerboseLoggingToggleItem.Checked );
+        private void VerboseLoggingToggleItem_Click(object sender, EventArgs e)
+        {
+            VerboseLoggingToggleItem.Checked = !VerboseLoggingToggleItem.Checked;
+            controller.ToggleVerboseLogging(VerboseLoggingToggleItem.Checked);
         }
 
         private void StatisticsConfigItem_Click(object sender, EventArgs e)
